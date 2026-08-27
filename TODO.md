@@ -233,8 +233,21 @@
 - [x] **أصول متعددة مفقودة معاً**: فيديو محذوف + mix وvoice محذوفان لمشهدين
       مختلفين → Ken Burns + صمت حقيقي والمدة محفوظة ✅ — 269 إجمالاً
 
-## PHASE 17 — Packaging ⬜
-- [ ] PyInstaller + تعليمات التوزيع
+## PHASE 17 — Packaging ✅
+- [x] **توزيع pip/pipx حقيقي مُختبر**: `pyproject.toml` (اسم ai-video-factory،
+      deps كاملة، console-script ‏`ai-video-factory`) + **خطوط Cairo داخل الحزمة**
+      (ai_video_factory/assets/fonts) مع font loader يبحث في الحزمة أولاً ثم
+      المستودع — مُثبت بتثبيت نظيف في venv جديد من PyPI فعلياً وتشغيل
+      doctor/selftest/version من خارج المستودع + توليد مصغرة بخط الحزمة
+- [x] `project_root()` أصبح **frozen-aware** (مسار التنفيذي عند التجميع)
+- [x] `release.spec` (PyInstaller onedir: أصول + ffmpeg الثابت + hiddenimports
+      + استبعادات Qt الثقيلة) + `scripts/build_release.sh` مع **حارس libpython
+      الأمين** — sandbox بيثونه ثابت البناء بلا libpython.so والقنوات
+      (github/python.org/docker/conda/apt) محجوبة، فالتنفيذي يُبنى على آلة
+      عادية `--enable-shared` بينما العجلة هي قناة التوزيع المدعومة هنا
+- [x] 7 اختبارات تغليف: بناء wheel حقيقي داخل الاختبار والتحقق من الخطوط
+      ونقاط الدخول، `python -m` من مجلد أجنبي، محاكاة التجميع، حراسة السكربت ✅
+      — **276 إجمالاً — الخطة الـ 17 مرحلة مكتملة**
 
 ---
 

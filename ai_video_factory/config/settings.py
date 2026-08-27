@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import os
 from pathlib import Path
 from typing import Any
@@ -28,7 +29,10 @@ APP_ID = "ai_video_factory"
 
 
 def project_root() -> Path:
-    """Return the project root directory (two levels above this file)."""
+    """Project root: two levels above this file (source) or the directory
+    holding the frozen executable (PyInstaller onedir builds)."""
+    if getattr(sys, "frozen", False):                    # packaged executable
+        return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parent.parent.parent
 
 

@@ -32,3 +32,8 @@ dist/
 Thumbs.db
 .idea/
 .vscode/
+
+# Packaging (PHASE 17)
+build/
+dist/
+*.spec.bak

@@ -47,10 +47,16 @@ def _shape(text: str) -> str:
 
 def _font(bold: bool, size: int) -> ImageFont.FreeTypeFont:
     name = "Cairo-Bold.ttf" if bold else "Cairo-Regular.ttf"
-    path = project_root() / "assets" / "fonts" / name
-    if path.exists():
-        return ImageFont.truetype(str(path), size)
+    for path in font_candidates(name):       # packaged first, repo layout second
+        if path.exists():
+            return ImageFont.truetype(str(path), size)
     return ImageFont.load_default()          # honest fallback (no Arabic then)
+
+
+def font_candidates(name: str) -> list[Path]:
+    """Font search paths: inside the installed package, then a repo checkout."""
+    package_dir = Path(__file__).resolve().parent.parent / "assets" / "fonts"
+    return [package_dir / name, project_root() / "assets" / "fonts" / name]
 
 
 def _fit_font(text: str, *, bold: bool, max_size: int, min_size: int,

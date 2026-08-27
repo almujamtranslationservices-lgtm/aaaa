@@ -32,8 +32,9 @@ Modular قابلة للتوسع، ومبدأ **Free-First**: المحلي أول
 | PHASE 14 — SEO | ✅ منجزة | عنوان/وصف/وسوم/هاشتاغات/فصول · LLM + قالب offline · نافذة تحرير |
 | PHASE 15 — Thumbnail | ✅ منجزة | 1280×720 بخط Cairo مرفق · خلفية حقيقية + نص قابل للتحرير |
 | PHASE 16 — Testing موسّع | ✅ منجزة | إجهاد حقيقي: إلغاء/فشل/استئناف · مرآة SQLite · أصول متعددة مفقودة |
+| PHASE 17 — Packaging | ✅ منجزة | عجلة pip/pipx مُختبرة + أمر `ai-video-factory` + PyInstaller spec |
 
-**يعمل اليوم (269 اختباراً ناجحاً):** الواجهة كاملة + سكربت (سلسلة احتياط) + Prompts +
+**يعمل اليوم (276 اختباراً ناجحاً — الخطة كاملة):** الواجهة كاملة + سكربت (سلسلة احتياط) + Prompts +
 **صور** + **فيديو MP4 لكل مشهد** + **تعليق صوتي لكل مشهد** + **مزج صوتي كامل لكل مشهد** (mix.wav): موسيقى خلفية تُخفض
 تلقائياً أثناء الكلام (sidechain ducking) + SFX + fades — بأصوات Edge مجانية أو
 ElevenLabs/Piper/نغمات offline، مع كاش وعزل أعطال + **ترجمات SRT/ASS** مولّدة
@@ -83,7 +84,7 @@ cp .env.example .env             # ثم ضع مفاتيحك (اختياري — 
 source .venv/bin/activate
 python app.py gui                # تشغيل الواجهة 🎬
 python app.py doctor             # تحقق من البيئة
-python -m pytest                 # تشغيل الاختبارات (269)
+python -m pytest                 # تشغيل الاختبارات (276)
 ```
 
 ### أول تجربة خلال دقيقة (Demo Mode)
@@ -96,6 +97,31 @@ python -m pytest                 # تشغيل الاختبارات (269)
 على Windows: `python -m venv .venv` ثم `.venv\Scripts\activate` ثم `pip install -r requirements.txt`.
 
 ---
+
+## 📦 التوزيع (PHASE 17)
+
+### العجلة — القناة المدعومة (pipx)
+
+```bash
+bash scripts/build_release.sh          # يبني wheels/ai_video_factory-*.whl
+pipx install wheels/ai_video_factory-0.1.0-py3-none-any.whl
+ai-video-factory doctor                # فحص البيئة
+ai-video-factory selftest              # تحميل كل الوحدات الـ 35
+ai-video-factory gui                   # الواجهة
+```
+
+كل شيء داخل الحزمة: خطوط Cairo (عربي كامل)، FFmpeg ثابت (imageio-ffmpeg)،
+والـ probing عبر PyAV — **لا حاجة لأي تثبيت نظامي**.
+
+### التنفيذي المستقل (PyInstaller — على آلة عادية)
+
+```bash
+bash scripts/build_release.sh --exe    # يتطلب بايثون بـ --enable-shared
+dist/AIVideoFactory/AIVideoFactory doctor
+```
+
+`release.spec` (onedir) يضم الأصول وffmpeg؛ السكربت يفحص libpython أولاً
+ويرفض بأمانة إن غابت.
 
 ## 🔑 إعداد المزودين (API Keys)
 
