@@ -31,8 +31,9 @@ Modular قابلة للتوسع، ومبدأ **Free-First**: المحلي أول
 | PHASE 13 — Rendering Pipeline | ✅ منجزة | **output/final.mp4** · build_standard_pipeline · Generate Everything · Resume |
 | PHASE 14 — SEO | ✅ منجزة | عنوان/وصف/وسوم/هاشتاغات/فصول · LLM + قالب offline · نافذة تحرير |
 | PHASE 15 — Thumbnail | ✅ منجزة | 1280×720 بخط Cairo مرفق · خلفية حقيقية + نص قابل للتحرير |
+| PHASE 16 — Testing موسّع | ✅ منجزة | إجهاد حقيقي: إلغاء/فشل/استئناف · مرآة SQLite · أصول متعددة مفقودة |
 
-**يعمل اليوم (265 اختباراً ناجحاً):** الواجهة كاملة + سكربت (سلسلة احتياط) + Prompts +
+**يعمل اليوم (269 اختباراً ناجحاً):** الواجهة كاملة + سكربت (سلسلة احتياط) + Prompts +
 **صور** + **فيديو MP4 لكل مشهد** + **تعليق صوتي لكل مشهد** + **مزج صوتي كامل لكل مشهد** (mix.wav): موسيقى خلفية تُخفض
 تلقائياً أثناء الكلام (sidechain ducking) + SFX + fades — بأصوات Edge مجانية أو
 ElevenLabs/Piper/نغمات offline، مع كاش وعزل أعطال + **ترجمات SRT/ASS** مولّدة
@@ -82,7 +83,7 @@ cp .env.example .env             # ثم ضع مفاتيحك (اختياري — 
 source .venv/bin/activate
 python app.py gui                # تشغيل الواجهة 🎬
 python app.py doctor             # تحقق من البيئة
-python -m pytest                 # تشغيل الاختبارات (265)
+python -m pytest                 # تشغيل الاختبارات (269)
 ```
 
 ### أول تجربة خلال دقيقة (Demo Mode)

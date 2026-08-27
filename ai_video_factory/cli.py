@@ -98,7 +98,7 @@ def cmd_doctor() -> int:
 
     _section("Conclusion")
     gui_ready = importlib.util.find_spec("PySide6") is not None
-    print(f"Core architecture: OPERATIONAL (PHASE 1-15 complete — render + SEO + smart thumbnail live).")
+    print(f"Core architecture: OPERATIONAL (PHASE 1-16 complete — stress-tested end to end).")
     print(f"GUI: {'READY — run `python app.py gui`' if gui_ready else 'install PySide6 to enable'}")
     print("Live: script + prompts + images + videos + voice + mixes + SUBTITLES per scene")
     print("      (auto-ducked music, fades, SFX — all cached & isolated).")
