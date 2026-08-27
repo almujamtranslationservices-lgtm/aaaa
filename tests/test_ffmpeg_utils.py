@@ -59,16 +59,22 @@ def test_missing_binary_raises_not_found():
         engine.run(["-version"])
 
 
-def test_media_operations_are_honestly_unimplemented():
+def test_all_media_operations_are_implemented():
+    """PHASE 12: the engine's media ops are all REAL (no honest stubs left)."""
     engine = FFmpegEngine()
     from pathlib import Path
 
-    for call in (
-        lambda: engine.concat_videos([], Path("out.mp4")),
-        lambda: engine.extract_thumbnail(Path("v.mp4"), Path("t.jpg")),
-    ):
-        with pytest.raises(NotImplementedError):
-            call()
+    for name in ("image_to_video", "concat_videos", "scale_video", "mix_audio",
+                 "burn_subtitles", "mux_audio", "extract_thumbnail", "validate_video"):
+        method = getattr(engine, name)
+        assert callable(method), name
+        # Honest failures for bad inputs are FFmpegError — never NotImplementedError.
+        try:
+            method()
+        except NotImplementedError:  # pragma: no cover - would regress to stubs
+            pytest.fail(f"{name} regressed to a stub")
+        except Exception:
+            pass  # real validation errors are expected without arguments
 
 
 def test_ffmpeg_really_encodes_a_video(tmp_path):

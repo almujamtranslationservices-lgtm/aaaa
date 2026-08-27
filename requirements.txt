@@ -11,6 +11,7 @@ Pillow>=10.3
 PySide6>=6.7
 
 # --- Media processing (PHASE 10-13) ---
+av>=11        # ffprobe fallback (bundled FFmpeg libs) when the binary is absent
 opencv-python>=4.9
 moviepy>=1.0.3
 numpy>=1.26

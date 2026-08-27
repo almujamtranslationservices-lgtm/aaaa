@@ -27,9 +27,10 @@ Modular قابلة للتوسع، ومبدأ **Free-First**: المحلي أول
 | PHASE 9 — Voice Providers | ✅ منجزة | Demo (نغمات WAV) · Edge TTS (مجاني) · Piper محلي · ElevenLabs + محول MP3→WAV |
 | PHASE 10 — Audio System | ✅ منجزة | مزج voice+music+SFX · **Ducking تلقائي** · Fades · موسيقى وSFX إجرائية |
 | PHASE 11 — Subtitles | ✅ منجزة | SRT + ASS كامل التنسيق · توقيتات من الصوت الفعلي · لكل مشهد + موحّد |
-| PHASE 12+ — تجميع/رندر | ⬜ حسب الخطة | راجع [TODO.md](TODO.md) |
+| PHASE 12 — FFmpeg Engine | ✅ منجزة | concat بتطبيع · حرق ترجمة · scale · mux صوت · thumbnails · probe بلا ffprobe |
+| PHASE 13+ — رندر | ⬜ حسب الخطة | راجع [TODO.md](TODO.md) |
 
-**يعمل اليوم (225 اختباراً ناجحاً):** الواجهة كاملة + سكربت (سلسلة احتياط) + Prompts +
+**يعمل اليوم (236 اختباراً ناجحاً):** الواجهة كاملة + سكربت (سلسلة احتياط) + Prompts +
 **صور** + **فيديو MP4 لكل مشهد** + **تعليق صوتي لكل مشهد** + **مزج صوتي كامل لكل مشهد** (mix.wav): موسيقى خلفية تُخفض
 تلقائياً أثناء الكلام (sidechain ducking) + SFX + fades — بأصوات Edge مجانية أو
 ElevenLabs/Piper/نغمات offline، مع كاش وعزل أعطال + **ترجمات SRT/ASS** مولّدة
@@ -76,7 +77,7 @@ cp .env.example .env             # ثم ضع مفاتيحك (اختياري — 
 source .venv/bin/activate
 python app.py gui                # تشغيل الواجهة 🎬
 python app.py doctor             # تحقق من البيئة
-python -m pytest                 # تشغيل الاختبارات (225)
+python -m pytest                 # تشغيل الاختبارات (236)
 ```
 
 ### أول تجربة خلال دقيقة (Demo Mode)

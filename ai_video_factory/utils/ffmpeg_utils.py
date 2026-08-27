@@ -73,7 +73,13 @@ class FFmpegEngine:
 
     @property
     def probe_available(self) -> bool:
-        return self._ffprobe is not None
+        if self._ffprobe is not None:
+            return True
+        try:                              # PyAV ships full FFmpeg libs (no binary)
+            import av  # noqa: F401
+            return True
+        except ImportError:
+            return False
 
     @property
     def ffmpeg_path(self) -> str:
@@ -126,11 +132,17 @@ class FFmpegEngine:
         return result
 
     def probe(self, media_path: Path | str) -> dict:
-        """Return ffprobe metadata (format + streams) as a parsed dict.
+        """Return ffprobe-shaped metadata (format + streams) as a parsed dict.
+
+        Prefers a real ``ffprobe`` binary; falls back to PyAV (bundled FFmpeg
+        libs) when the binary is absent — the dict shape is identical so
+        callers never care which backend answered.
 
         Raises:
-            FFmpegError: when ffprobe is missing or the file cannot be probed.
+            FFmpegError: when neither backend is available or probing fails.
         """
+        if self._ffprobe is None:
+            return self._probe_with_pyav(media_path)
         command = [
             self.ffprobe_path, "-v", "error", "-print_format", "json",
             "-show_format", "-show_streams", str(media_path),
@@ -145,6 +157,37 @@ class FFmpegEngine:
         if result.returncode != 0:
             raise FFmpegError(f"ffprobe failed on {media_path}: {(result.stderr or '').strip()[:500]}")
         return json.loads(result.stdout or "{}")
+
+    @staticmethod
+    def _probe_with_pyav(media_path: Path | str) -> dict:
+        """ffprobe-compatible metadata via PyAV (no external binary needed)."""
+        try:
+            import av
+        except ImportError as exc:  # pragma: no cover - depends on install
+            raise FFmpegError(
+                "ffprobe binary not found and PyAV not installed — pip install av"
+            ) from exc
+        try:
+            container = av.open(str(media_path))
+        except Exception as exc:  # noqa: BLE001 - av raises many types
+            raise FFmpegError(f"probe failed on {media_path}: {exc}") from exc
+        with container:
+            streams: list[dict] = []
+            for stream in container.streams:
+                entry = {"codec_type": stream.type, "codec_name": stream.name}
+                if stream.type == "video":
+                    entry["width"] = stream.width
+                    entry["height"] = stream.height
+                    rate = stream.average_rate
+                    entry["avg_frame_rate"] = (
+                        f"{rate.numerator}/{rate.denominator}" if rate else "0/1"
+                    )
+                streams.append(entry)
+            duration_s = (container.duration or 0) / 1_000_000
+            return {
+                "format": {"duration": f"{duration_s:.6f}", "format_name": container.format.name},
+                "streams": streams,
+            }
 
     # ------------------------------------------------------- media operations
     # concat / mix / burn land in PHASE 12; image_to_video is delivered with
@@ -224,9 +267,97 @@ class FFmpegEngine:
                           timeout=max(30.0, 60.0))
         return result.returncode == 0
 
-    def concat_videos(self, clips: list[Path], output: Path) -> Path:  # pragma: no cover
-        """Concatenate same-format clips with stream copying when possible."""
-        raise NotImplementedError("concat_videos is planned for PHASE 12 (rendering pipeline)")
+    def _video_stream_info(self, video: Path) -> dict:
+        """First video-stream info (width/height/fps) via ffprobe."""
+        info = self.probe(video)
+        for stream in info.get("streams", []):
+            if stream.get("codec_type") == "video":
+                rate = stream.get("avg_frame_rate") or stream.get("r_frame_rate") or "25/1"
+                try:
+                    num, _, den = rate.partition("/")
+                    fps = float(num) / float(den or 1)
+                except (ValueError, ZeroDivisionError):
+                    fps = 25.0
+                return {"width": int(stream.get("width", 0)), "height": int(stream.get("height", 0)),
+                        "fps": fps if fps > 0 else 25.0}
+        raise FFmpegError(f"no video stream found in {video}")
+
+    def concat_videos(
+        self,
+        clips: list[Path],
+        output: Path,
+        *,
+        width: int | None = None,
+        height: int | None = None,
+        fps: float | None = None,
+        crf: int = 20,
+    ) -> Path:
+        """Concatenate clips into ONE video (video-only; audio muxes at assembly).
+
+        Every input is normalised (scale+pad to the target frame, SAR 1, fixed
+        fps, yuv420p) before the concat filter, so clips with differing
+        resolutions still produce a valid single stream. Dimensions default to
+        the first clip's.
+        """
+        clips = [Path(clip) for clip in clips]
+        if not clips:
+            raise FFmpegError("concat_videos: no clips given")
+        missing = [str(clip) for clip in clips if not clip.exists()]
+        if missing:
+            raise FFmpegError(f"concat_videos: missing clips: {missing}")
+
+        first = self._video_stream_info(clips[0])
+        target_w = _even(width or first["width"] or 640)
+        target_h = _even(height or first["height"] or 360)
+        target_fps = fps or first["fps"]
+
+        inputs: list[str] = []
+        chains: list[str] = []
+        for index, clip in enumerate(clips):
+            inputs += ["-i", str(clip)]
+            chains.append(
+                f"[{index}:v]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,"
+                f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
+                f"fps={target_fps},format=yuv420p[n{index}]"
+            )
+        labels = "".join(f"[n{index}]" for index in range(len(clips)))
+        chains.append(f"{labels}concat=n={len(clips)}:v=1:a=0[vout]")
+
+        output = Path(output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        self.run([
+            "-y", *inputs,
+            "-filter_complex", ";".join(chains),
+            "-map", "[vout]",
+            "-c:v", "libx264", "-preset", "medium", "-crf", str(crf),
+            "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+            str(output),
+        ], timeout=max(120.0, len(clips) * 60.0))
+        if not output.exists() or output.stat().st_size == 0:
+            raise FFmpegError(f"concat_videos: no output produced at {output}")
+        return output
+
+    def scale_video(self, video: Path, output: Path, *, width: int, height: int,
+                    fps: float | None = None, crf: int = 20) -> Path:
+        """Re-encode one clip to an exact frame size (pad-preserving aspect)."""
+        video, output = Path(video), Path(output)
+        if not video.exists():
+            raise FFmpegError(f"scale_video: source not found: {video}")
+        target_w, target_h = _even(width), _even(height)
+        chain = (
+            f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,"
+            f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p"
+        )
+        args = ["-y", "-i", str(video), "-vf", chain,
+                "-c:v", "libx264", "-preset", "medium", "-crf", str(crf)]
+        if fps:
+            args += ["-r", str(fps)]
+        args += ["-movflags", "+faststart", str(output)]
+        output.parent.mkdir(parents=True, exist_ok=True)
+        self.run(args, timeout=180.0)
+        if not output.exists() or output.stat().st_size == 0:
+            raise FFmpegError(f"scale_video: no output produced at {output}")
+        return output
 
     # ------------------------------------------------------------- audio mix
     def mix_audio(
@@ -338,11 +469,83 @@ class FFmpegEngine:
             raise FFmpegError(f"mix_audio: no WAV produced at {output}")
         return output
 
-    def burn_subtitles(self, video: Path, subtitle_file: Path, output: Path, *,
-                       style: dict) -> Path:  # pragma: no cover
-        """Burn SRT/ASS subtitles into the video stream."""
-        raise NotImplementedError("burn_subtitles is planned for PHASE 11/12")
+    @staticmethod
+    def _escape_filter_path(path: Path | str) -> str:
+        """Escape a path for use inside a filter argument (\: and quotes)."""
+        return str(path).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
 
-    def extract_thumbnail(self, video: Path, output: Path, *, time_s: float = 0.0) -> Path:  # pragma: no cover
-        """Grab a single frame as a thumbnail image."""
-        raise NotImplementedError("extract_thumbnail is planned for PHASE 12")
+    def burn_subtitles(self, video: Path, subtitle_file: Path, output: Path, *,
+                       style: dict | None = None) -> Path:
+        """Burn an SRT/ASS file into the video stream (``subtitles`` filter).
+
+        *style* maps directly to libavfilter ``force_style`` keys, e.g.
+        ``{"FontName": "Cairo", "FontSize": 24, "PrimaryColour": "&H00FFFFFF"}``.
+        Audio (if any) is stream-copied untouched.
+        """
+        video, subtitle_file, output = Path(video), Path(subtitle_file), Path(output)
+        if not video.exists():
+            raise FFmpegError(f"burn_subtitles: video not found: {video}")
+        if not subtitle_file.exists():
+            raise FFmpegError(f"burn_subtitles: subtitle file not found: {subtitle_file}")
+        if subtitle_file.suffix.lower() not in {".srt", ".ass"}:
+            raise FFmpegError(f"burn_subtitles: expected .srt/.ass, got {subtitle_file.name}")
+
+        filter_arg = f"subtitles='{self._escape_filter_path(subtitle_file)}'"
+        if style:
+            # force_style items are ASS style fields: comma-separated.
+            rendered = ",".join(f"{key}={value}" for key, value in style.items())
+            filter_arg += f":force_style='{rendered}'"
+
+        output.parent.mkdir(parents=True, exist_ok=True)
+        self.run([
+            "-y", "-i", str(video),
+            "-vf", filter_arg,
+            "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+            "-c:a", "copy" if self._has_audio_stream(video) else "aac",
+            "-movflags", "+faststart",
+            str(output),
+        ], timeout=300.0)
+        if not output.exists() or output.stat().st_size == 0:
+            raise FFmpegError(f"burn_subtitles: no output produced at {output}")
+        return output
+
+    def _has_audio_stream(self, video: Path) -> bool:
+        try:
+            info = self.probe(video)
+        except FFmpegError:
+            return False
+        return any(stream.get("codec_type") == "audio" for stream in info.get("streams", []))
+
+    def mux_audio(self, video: Path, audio: Path, output: Path, *,
+                  audio_bitrate: str = "192k", sample_rate: int = 44100) -> Path:
+        """Attach an audio track to a video (video stream-copied, audio AAC)."""
+        video, audio, output = Path(video), Path(audio), Path(output)
+        if not video.exists():
+            raise FFmpegError(f"mux_audio: video not found: {video}")
+        if not audio.exists():
+            raise FFmpegError(f"mux_audio: audio not found: {audio}")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        self.run([
+            "-y", "-i", str(video), "-i", str(audio),
+            "-map", "0:v:0", "-map", "1:a:0",
+            "-c:v", "copy", "-c:a", "aac", "-b:a", audio_bitrate,
+            "-ar", str(sample_rate), "-shortest", "-movflags", "+faststart",
+            str(output),
+        ], timeout=300.0)
+        if not output.exists() or output.stat().st_size == 0:
+            raise FFmpegError(f"mux_audio: no output produced at {output}")
+        return output
+
+    def extract_thumbnail(self, video: Path, output: Path, *, time_s: float = 0.0) -> Path:
+        """Grab one decoded frame as an image (format from the extension)."""
+        video, output = Path(video), Path(output)
+        if not video.exists():
+            raise FFmpegError(f"extract_thumbnail: video not found: {video}")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        self.run([
+            "-y", "-ss", f"{max(0.0, time_s):.3f}", "-i", str(video),
+            "-frames:v", "1", "-q:v", "2", str(output),
+        ], timeout=60.0)
+        if not output.exists() or output.stat().st_size == 0:
+            raise FFmpegError(f"extract_thumbnail: no output produced at {output}")
+        return output

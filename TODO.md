@@ -157,8 +157,19 @@
 - [x] UI: زر **Subtitles** (خلفي) + حدث subtitles.generated
 - [x] 13 اختباراً جديداً (توقيت من WAV حقيقي، رتابة وترتيب، ألوان ASS، خدمة/كاش) ✅
 
-## PHASE 12 — FFmpeg Engine (كامل) ⬜
-- [ ] image_to_video / concat / mix / burn / scale / thumbnail — فوق `FFmpegEngine.run`
+## PHASE 12 — FFmpeg Engine (كامل) ✅
+- [x] `concat_videos` — تطبيع كل مقطع (scale+pad+setsar+fps+yuv420p) ثم concat
+      filter بإعادة ترميز: مقاطع بأبعاد مختلفة تُدمج في تدفق واحد سليم؛ الأبعاد
+      الافتراضية من أول مقطع أو تُفرض صراحةً
+- [x] `burn_subtitles` — حرق SRT/ASS عبر subtitles filter مع force_style (حقول
+      ASS بفواصل)؛ الصوت يُنسخ كما هو إن وُجد
+- [x] `scale_video` + `mux_audio` (فيديو copy + صوت AAC + shortest) + `extract_thumbnail`
+      (إطار واحد بجودة q=2) — كلها لمتطلبات التجميع والرندر
+- [x] **probe عبر PyAV fallback**: لا حاجة لثنائي ffprobe — نفس شكل المخرجات
+      تماماً (استُخدمت مكتبة av المجمعة؛ أضيفت لـ requirements)
+- [x] (image_to_video وmix_audio نُفّذا فعلاً في PHASE 8 و10)
+- [x] 11 اختباراً سلوكياً: أبعاد/مدد مقيسة بـ probe، والحرق يُثبَت **بتغير بكسلات
+      الإطار فعلاً** قبل/بعد ✅ — 236 إجمالاً
 
 ## PHASE 13 — Rendering Pipeline ⬜
 - [ ] المراحل الـ 15 (`build_standard_pipeline`) + تفعيل زر Generate Everything
