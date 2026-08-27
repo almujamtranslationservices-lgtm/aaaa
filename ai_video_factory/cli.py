@@ -65,10 +65,12 @@ def cmd_doctor() -> int:
     if engine.available:
         print(f"{_OK}ffmpeg       : {engine.ffmpeg_path}")
         print(f"{_OK}version      : {engine.version()}")
-        if engine.probe_available:
-            print(f"{_OK}ffprobe      : {engine.ffprobe_path}")
+        if engine._ffprobe:
+            print(f"{_OK}ffprobe      : {engine._ffprobe}")
+        elif engine.probe_available:
+            print(f"{_OK}ffprobe      : via PyAV fallback (av package — no binary needed)")
         else:
-            print(f"{_WARN}ffprobe      : not found (media metadata probing disabled until installed)")
+            print(f"{_WARN}ffprobe      : not found (pip install av for metadata probing)")
     else:
         print(f"{_FAIL}ffmpeg       : not found — install FFmpeg or `pip install imageio-ffmpeg`")
 
