@@ -1,0 +1,25 @@
+# AI Video Factory — Python dependencies
+# Python 3.11+ (3.12 recommended)
+
+# --- Core architecture (PHASE 1+) ---
+pydantic>=2.7
+python-dotenv>=1.0
+httpx>=0.27
+Pillow>=10.3
+
+# --- GUI (PHASE 3) ---
+PySide6>=6.7
+
+# --- Media processing (PHASE 10-13) ---
+opencv-python>=4.9
+moviepy>=1.0.3
+numpy>=1.26
+
+# --- Voice (PHASE 9) — free, no API key required ---
+edge-tts>=6.1
+
+# --- Optional: bundled static ffmpeg binary fallback ---
+# imageio-ffmpeg>=0.5
+
+# --- Development / testing ---
+pytest>=8.0
