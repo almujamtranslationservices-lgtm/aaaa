@@ -98,11 +98,11 @@ def cmd_doctor() -> int:
 
     _section("Conclusion")
     gui_ready = importlib.util.find_spec("PySide6") is not None
-    print(f"Core architecture: OPERATIONAL (PHASE 1-12 complete).")
+    print(f"Core architecture: OPERATIONAL (PHASE 1-13 complete — full render pipeline live).")
     print(f"GUI: {'READY — run `python app.py gui`' if gui_ready else 'install PySide6 to enable'}")
     print("Live: script + prompts + images + videos + voice + mixes + SUBTITLES per scene")
     print("      (auto-ducked music, fades, SFX — all cached & isolated).")
-    print("Next: the full rendering pipeline + Generate Everything (PHASE 13).")
+    print("Final video: Generate Everything in the UI → output/final.mp4")
     return 0
 
 

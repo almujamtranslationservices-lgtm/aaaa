@@ -22,6 +22,7 @@ but ``project.json`` always remains authoritative.
 from __future__ import annotations
 
 import logging
+import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -226,12 +227,24 @@ class ProjectManager:
         return self.asset_path(project, scene_number, kind).exists()
 
     # ---------------------------------------------------------------- exports
-    def export_package(self, project: Project, dest_dir: Path) -> Path:  # pragma: no cover — PHASE 13
-        """Bundle final_video.mp4 + thumbnail + subtitles + SEO + project.json.
+    def export_package(self, project: Project, dest_dir: Path) -> Path:
+        """Bundle final.mp4 + thumbnail + subtitles + music + project.json.
 
-        TODO(PHASE 13): implemented together with the rendering pipeline.
+        Missing optional pieces (subtitles, thumbnail, music) are skipped;
+        a rendered final video is required.
         """
-        raise NotImplementedError("export_package is planned for PHASE 13 (rendering & export)")
+        project_dir = self.project_dir(project)
+        final = project_dir / "output" / "final.mp4"
+        if not final.exists():
+            raise ProjectError(f"No final video to export - render first ({final})")
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(final, dest_dir / final.name)
+        for relative in ("output/thumbnail.png", "subtitles.srt", "subtitles.ass",
+                         "music.wav", "project.json"):
+            source = project_dir / relative
+            if source.exists():
+                shutil.copyfile(source, dest_dir / source.name)
+        return dest_dir
 
     # -------------------------------------------------------------- internals
     def _write(self, project: Project) -> Path:

@@ -45,7 +45,7 @@ PIPELINE_PLAN: tuple[tuple[str, float, int], ...] = (
     ("videos.generate",    15.0, 8),
     ("voice.generate",       7.0, 9),
     ("audio.sfx",            3.0, 10),
-    ("audio.music",          3.0, 10),
+    ("audio.mix",           3.0, 10),   # music bed + ducked scene mixes
     ("subtitles.generate",   4.0, 11),
     ("timeline.assemble",    3.0, 13),
     ("video.render",        12.0, 13),

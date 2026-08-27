@@ -28,13 +28,16 @@ Modular قابلة للتوسع، ومبدأ **Free-First**: المحلي أول
 | PHASE 10 — Audio System | ✅ منجزة | مزج voice+music+SFX · **Ducking تلقائي** · Fades · موسيقى وSFX إجرائية |
 | PHASE 11 — Subtitles | ✅ منجزة | SRT + ASS كامل التنسيق · توقيتات من الصوت الفعلي · لكل مشهد + موحّد |
 | PHASE 12 — FFmpeg Engine | ✅ منجزة | concat بتطبيع · حرق ترجمة · scale · mux صوت · thumbnails · probe بلا ffprobe |
-| PHASE 13+ — رندر | ⬜ حسب الخطة | راجع [TODO.md](TODO.md) |
+| PHASE 13 — Rendering Pipeline | ✅ منجزة | **output/final.mp4** · build_standard_pipeline · Generate Everything · Resume |
 
-**يعمل اليوم (236 اختباراً ناجحاً):** الواجهة كاملة + سكربت (سلسلة احتياط) + Prompts +
+**يعمل اليوم (245 اختباراً ناجحاً):** الواجهة كاملة + سكربت (سلسلة احتياط) + Prompts +
 **صور** + **فيديو MP4 لكل مشهد** + **تعليق صوتي لكل مشهد** + **مزج صوتي كامل لكل مشهد** (mix.wav): موسيقى خلفية تُخفض
 تلقائياً أثناء الكلام (sidechain ducking) + SFX + fades — بأصوات Edge مجانية أو
 ElevenLabs/Piper/نغمات offline، مع كاش وعزل أعطال + **ترجمات SRT/ASS** مولّدة
 من توقيتات النطق الحقيقية لكل مشهد، بخط/ألوان/موضع/حركة قابلة للضبط بالكامل.
+**وزر واحد — 🎬 Generate Everything — ينتج الفيديو النهائي كاملاً** (output/
+final.mp4: فيديو مُجمَّع + صوت مُمزوج + ترجمة محروقة + thumbnail)، مع استئناف
+تلقائي من حيث توقف بعد أي إغلاق.
 
 لقطات الواجهة: `docs/ui_dashboard.png` · `docs/ui_project_prompts.png` · `docs/ui_characters.png` · `docs/ui_scene_editor.png` · `docs/ui_providers.png`
 
@@ -77,7 +80,7 @@ cp .env.example .env             # ثم ضع مفاتيحك (اختياري — 
 source .venv/bin/activate
 python app.py gui                # تشغيل الواجهة 🎬
 python app.py doctor             # تحقق من البيئة
-python -m pytest                 # تشغيل الاختبارات (236)
+python -m pytest                 # تشغيل الاختبارات (245)
 ```
 
 ### أول تجربة خلال دقيقة (Demo Mode)

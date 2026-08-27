@@ -130,11 +130,13 @@ class ProjectPage(QWidget):
         )
         self._subs_button.clicked.connect(self._generate_subtitles)
         self._generate_all_button = QPushButton("🎬  Generate Everything")
-        self._generate_all_button.setEnabled(False)
         self._generate_all_button.setToolTip(
-            "Runs the full 15-stage pipeline.\n"
-            "Enabled once the provider & rendering phases land (PHASE 7-13, see TODO.md)."
+            "Runs the WHOLE pipeline in one background task:\n"
+            "script → scenes → prompts → images → videos → voice → mixes →\n"
+            "subtitles → timeline → FINAL RENDER (output/final.mp4).\n"
+            "Every stage is cached — re-running resumes where it stopped."
         )
+        self._generate_all_button.clicked.connect(self._generate_everything)
         save_button = QPushButton("💾  Save Project")
         save_button.clicked.connect(self._save_project)
         controls.addWidget(QLabel("LLM:"))
@@ -223,6 +225,7 @@ class ProjectPage(QWidget):
         on_event(self, self._ctx.bus, "voices.voice_generated", self._on_voices_generated)
         on_event(self, self._ctx.bus, "audio.mixed", self._on_audio_mixed)
         on_event(self, self._ctx.bus, "subtitles.generated", self._on_subtitles_generated)
+        on_event(self, self._ctx.bus, "render.completed", self._on_render_completed)
         on_event(self, self._ctx.bus, "task.succeeded", lambda e: self._on_task_terminal(e))
         on_event(self, self._ctx.bus, "task.failed", lambda e: self._on_task_terminal(e))
         on_event(self, self._ctx.bus, "task.cancelled", lambda e: self._on_task_terminal(e))
@@ -323,7 +326,8 @@ class ProjectPage(QWidget):
                       self._video_provider_combo, self._voice_provider_combo,
                       self._voice_name_combo):
             combo.setEnabled(has_project)
-        self._generate_all_button.setEnabled(False)  # PHASE 13 — honest placeholder
+        idea_ready = has_project and len((self._project.idea or "").strip()) >= 10
+        self._generate_all_button.setEnabled((has_scenes or idea_ready) and not busy)
 
     # -------------------------------------------------------------- generation
     def _generate_script(self) -> None:
@@ -654,6 +658,73 @@ class ProjectPage(QWidget):
         )
         self._generating_task_id = task.id
         self._update_enabled()
+
+    # ---------------------------------------------------- generate everything
+    def _generate_everything(self) -> None:
+        """The full pipeline in ONE background task (cached stages resume)."""
+        project = self._project
+        if project is None:
+            QMessageBox.information(self, "No project", "Create or open a project first.")
+            return
+        idea = self._idea_edit.toPlainText().strip()
+        if not project.scenes and len(idea) < 10:
+            QMessageBox.warning(
+                self, "Idea too short",
+                "Describe the video idea (10+ characters) or generate a script first.",
+            )
+            return
+        if idea:
+            project.idea = idea
+        project_id = project.id
+        provider_ids = {
+            "llm": self._provider_combo.currentData() or "demo",
+            "image": self._image_provider_combo.currentData() or "demo",
+            "video": self._video_provider_combo.currentData() or "demo",
+            "voice": self._voice_provider_combo.currentData() or "demo",
+        }
+        models = {kind: self._ctx.provider_model(kind, pid)
+                  for kind, pid in provider_ids.items()}
+
+        def job(tctx) -> str:
+            from ai_video_factory.services.standard_pipeline import (
+                build_standard_pipeline, make_context,
+            )
+
+            pipeline = build_standard_pipeline(
+                self._ctx.project_manager, bus=self._ctx.bus,
+                provider_ids=provider_ids, models=models,
+                asset_repo=self._ctx.asset_repo,
+            )
+
+            def forward(event: Event) -> None:
+                percent = min(float(event.payload.get("percent", 0.0)) / 100.0, 1.0)
+                tctx.report_progress(percent, event.payload.get("stage", ""))
+
+            unsubscribe = self._ctx.bus.subscribe(forward, event_name="pipeline.progress")
+            try:
+                tctx.report_stage("Running the full pipeline…")
+                result = pipeline.run(make_context(project, self._ctx.project_manager))
+            finally:
+                unsubscribe()
+            if not result.success:
+                failed = [r.name for r in result.stage_results if r.outcome == "failed"]
+                raise RuntimeError(f"pipeline failed at: {failed or result.error}")
+            return f"final video ready ({len(result.completed_stages)} stages)"
+
+        task = self._ctx.task_manager.submit(
+            f"everything: {project.name}", job,
+            max_retries=self._ctx.settings_service.settings.retry_max_attempts - 1,
+            metadata={"project_id": project_id, "kind": "pipeline"},
+        )
+        self._generating_task_id = task.id
+        self._update_enabled()
+
+    def _on_render_completed(self, event: Event) -> None:
+        project = self._project
+        if project is None or event.payload.get("project_id") != project.id:
+            return
+        self._refresh_ui()
+        self.scenesChanged.emit()
 
     def _on_subtitles_generated(self, event: Event) -> None:
         project = self._project

@@ -171,9 +171,24 @@
 - [x] 11 اختباراً سلوكياً: أبعاد/مدد مقيسة بـ probe، والحرق يُثبَت **بتغير بكسلات
       الإطار فعلاً** قبل/بعد ✅ — 236 إجمالاً
 
-## PHASE 13 — Rendering Pipeline ⬜
-- [ ] المراحل الـ 15 (`build_standard_pipeline`) + تفعيل زر Generate Everything
-- [ ] Resume بعد الإغلاق + Batch queue (100 فكرة)
+## PHASE 13 — Rendering Pipeline ✅
+- [x] `services/render_service.py` — الرندر النهائي الحقيقي: ضمان مقاطع كل
+      المشاهد (بديل Ken Burns للصور فقط) → concat بتطبيع → مسار صوتي كامل
+      (mix لكل مشهد مع pad/trim لمدة المشهد + صمت حقيقي للفارغ) → mux AAC →
+      **حرق الترجمة** (force_style من SubtitleSettings أو styling مدمج لـ ASS)
+      → thumbnail → `output/final.mp4` + حالات COMPLETED/DONE
+- [x] `build_standard_pipeline` (services/standard_pipeline.py) — 13 مرحلة حقيقية
+       بأوزان PIPELINE_PLAN: script→scenes→prompts→images→videos→voice→sfx→mix→
+       subtitles→timeline→render→export (render_info.json + تسجيل DB + حدث
+       render.completed)
+- [x] **تفعيل زر 🎬 Generate Everything** — مهممة خلفية واحدة تشغّل الـ pipeline
+      كاملاً بتقدم حقيقي موزون؛ كل مرحلة بكاشها
+- [x] **Resume بعد الإغلاق**: إعادة التشغيل تتخطى المراحل المنتهية عبر كاش
+      الخدمات (مُثبت باختبار) + `ProjectManager.export_package` حقيقي
+- [x] `FFmpegEngine.concat_audio` (pad/trim لكل مقطع ثم دمج) — القطعة الناقصة
+- [ ] Batch queue (100 فكرة) — مؤجل لما بعد PHASE 14-15 (أولوية المخرج النهائي)
+- [x] 9 اختبارات جديدة أهمها **E2E: فكرة مجردة → final.mp4** عبر كل المراحل
+      الحقيقية + استئناف + سقوط مشاهد ناقصة الأصول ✅ — 245 إجمالاً
 
 ## PHASE 14 — SEO ⬜
 - [ ] SEO Generator (title/description/tags/hashtags/chapters) قابل للتحرير

@@ -516,6 +516,50 @@ class FFmpegEngine:
             return False
         return any(stream.get("codec_type") == "audio" for stream in info.get("streams", []))
 
+    def concat_audio(
+        self,
+        clips: list[Path],
+        output: Path,
+        *,
+        durations_s: list[float] | None = None,
+        sample_rate: int = 44100,
+    ) -> Path:
+        """Concatenate audio clips into one WAV, optionally forcing each clip's
+        length (``apad`` + ``atrim``) so the track matches the video timeline."""
+        clips = [Path(clip) for clip in clips]
+        if not clips:
+            raise FFmpegError("concat_audio: no clips given")
+        missing = [str(clip) for clip in clips if not clip.exists()]
+        if missing:
+            raise FFmpegError(f"concat_audio: missing clips: {missing}")
+        if durations_s is not None and len(durations_s) != len(clips):
+            raise FFmpegError("concat_audio: durations_s must match clips length")
+
+        fmt = f"aformat=sample_rates={sample_rate}:channel_layouts=stereo"
+        chains: list[str] = []
+        for index in range(len(clips)):
+            chain = f"[{index}:a]{fmt}"
+            if durations_s is not None:
+                chain += f",apad,atrim=end={durations_s[index]:.3f}"
+            chain += f"[a{index}]"
+            chains.append(chain)
+        labels = "".join(f"[a{index}]" for index in range(len(clips)))
+        chains.append(f"{labels}concat=n={len(clips)}:v=0:a=1[aout]")
+
+        output = Path(output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        inputs: list[str] = []
+        for clip in clips:
+            inputs += ["-i", str(clip)]
+        self.run([
+            "-y", *inputs,
+            "-filter_complex", ";".join(chains),
+            "-map", "[aout]", "-c:a", "pcm_s16le", "-ar", str(sample_rate),
+            str(output),
+        ], timeout=max(90.0, len(clips) * 30.0))
+        if not output.exists() or output.stat().st_size <= 44:
+            raise FFmpegError(f"concat_audio: no WAV produced at {output}")
+        return output
     def mux_audio(self, video: Path, audio: Path, output: Path, *,
                   audio_bitrate: str = "192k", sample_rate: int = 44100) -> Path:
         """Attach an audio track to a video (video stream-copied, audio AAC)."""
