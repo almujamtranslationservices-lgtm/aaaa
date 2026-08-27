@@ -240,7 +240,7 @@ class ProjectManager:
         dest_dir.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(final, dest_dir / final.name)
         for relative in ("output/thumbnail.png", "subtitles.srt", "subtitles.ass",
-                         "music.wav", "project.json"):
+                         "music.wav", "seo.json", "project.json"):
             source = project_dir / relative
             if source.exists():
                 shutil.copyfile(source, dest_dir / source.name)

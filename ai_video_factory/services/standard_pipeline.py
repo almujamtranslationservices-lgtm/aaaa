@@ -270,6 +270,24 @@ class RenderStage(_ServiceStage):
         ctx.set("render_result", result)
 
 
+class SeoStage(_ServiceStage):
+    """Publication metadata (title/description/tags/chapters) — editable later."""
+
+    name = "seo.generate"
+    on_error = "skip"
+
+    def run(self, ctx: PipelineContext) -> None:
+        from ai_video_factory.services.seo_service import generate_seo
+
+        result = generate_seo(ctx.project, self.manager,
+                              provider_id=self.provider_id("llm"),
+                              model=self.model("llm"))
+        if not result.ok:
+            raise RuntimeError(f"SEO generation failed: {result.error}")
+        ctx.set("seo", result.package)
+        ctx.report_progress(1.0, f"seo: {result.package.title[:40]}")
+
+
 class ExportStage(_ServiceStage):
     """Verify the final video, persist metadata and announce completion."""
 
@@ -345,6 +363,7 @@ def build_standard_pipeline(
         SubtitlesStage(**deps),
         TimelineAssembleStage(**deps),
         RenderStage(**deps),
+        SeoStage(**deps),
         ExportStage(**deps, bus=bus),
     ]
     for stage in stages:                      # percentages match PIPELINE_PLAN

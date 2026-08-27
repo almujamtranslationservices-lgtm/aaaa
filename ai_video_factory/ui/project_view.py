@@ -129,6 +129,13 @@ class ProjectPage(QWidget):
             "subtitles.srt/.ass with the project's styling. Cached per scene."
         )
         self._subs_button.clicked.connect(self._generate_subtitles)
+        self._seo_button = QPushButton("📈  SEO")
+        self._seo_button.setToolTip(
+            "Publication metadata: title / description / tags / hashtags /\n"
+            "chapters built from the real timeline — then EDITABLE in a dialog.\n"
+            "Cached in seo.json (demo provider builds it fully offline)."
+        )
+        self._seo_button.clicked.connect(self._open_seo)
         self._generate_all_button = QPushButton("🎬  Generate Everything")
         self._generate_all_button.setToolTip(
             "Runs the WHOLE pipeline in one background task:\n"
@@ -155,6 +162,7 @@ class ProjectPage(QWidget):
         controls.addWidget(self._voices_button)
         controls.addWidget(self._mix_button)
         controls.addWidget(self._subs_button)
+        controls.addWidget(self._seo_button)
         controls.addWidget(self._generate_all_button)
         controls.addStretch(1)
         controls.addWidget(save_button)
@@ -226,6 +234,7 @@ class ProjectPage(QWidget):
         on_event(self, self._ctx.bus, "audio.mixed", self._on_audio_mixed)
         on_event(self, self._ctx.bus, "subtitles.generated", self._on_subtitles_generated)
         on_event(self, self._ctx.bus, "render.completed", self._on_render_completed)
+        on_event(self, self._ctx.bus, "seo.generated", self._on_seo_generated)
         on_event(self, self._ctx.bus, "task.succeeded", lambda e: self._on_task_terminal(e))
         on_event(self, self._ctx.bus, "task.failed", lambda e: self._on_task_terminal(e))
         on_event(self, self._ctx.bus, "task.cancelled", lambda e: self._on_task_terminal(e))
@@ -322,6 +331,7 @@ class ProjectPage(QWidget):
         self._voices_button.setEnabled(has_scenes and not busy)
         self._mix_button.setEnabled(has_scenes and not busy)
         self._subs_button.setEnabled(has_scenes and not busy)
+        self._seo_button.setEnabled(has_project and not busy)
         for combo in (self._provider_combo, self._image_provider_combo,
                       self._video_provider_combo, self._voice_provider_combo,
                       self._voice_name_combo):
@@ -718,6 +728,65 @@ class ProjectPage(QWidget):
         )
         self._generating_task_id = task.id
         self._update_enabled()
+
+    # -------------------------------------------------------------------- SEO
+    def _open_seo(self) -> None:
+        """Cached SEO → edit now; otherwise generate in the background first."""
+        project = self._project
+        if project is None:
+            QMessageBox.information(self, "No project", "Create or open a project first.")
+            return
+        from ai_video_factory.services.seo_service import load_seo
+
+        if load_seo(project, self._ctx.project_manager) is not None:
+            self._show_seo_dialog()
+            return
+        project_id = project.id
+        provider_id = self._provider_combo.currentData() or "demo"
+        model_override = self._ctx.provider_model("llm", provider_id)
+
+        def job(tctx) -> str:
+            from ai_video_factory.services.seo_service import generate_seo
+
+            tctx.report_stage("Generating SEO metadata…")
+            result = generate_seo(project, self._ctx.project_manager,
+                                  provider_id=provider_id, model=model_override)
+            if not result.ok:
+                raise RuntimeError(f"SEO failed: {result.error}")
+            self._ctx.bus.publish("seo.generated", project_id=project_id,
+                                  title=result.package.title,
+                                  used_fallback=result.used_fallback)
+            return f"seo: {result.package.title}"
+
+        task = self._ctx.task_manager.submit(
+            f"seo: {project.name}", job,
+            max_retries=self._ctx.settings_service.settings.retry_max_attempts - 1,
+            metadata={"project_id": project_id, "kind": "seo"},
+        )
+        self._generating_task_id = task.id
+        self._update_enabled()
+
+    def _show_seo_dialog(self) -> None:
+        from PySide6.QtWidgets import QDialog
+
+        from ai_video_factory.ui.seo_dialog import SeoDialog
+
+        project = self._project
+        if project is None or project.seo is None:
+            return
+        dialog = SeoDialog(project.seo, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.saved_package is not None:
+            from ai_video_factory.services.seo_service import save_seo
+
+            save_seo(project, self._ctx.project_manager, dialog.saved_package)
+            self._refresh_ui()
+
+    def _on_seo_generated(self, event: Event) -> None:
+        project = self._project
+        if project is None or event.payload.get("project_id") != project.id:
+            return
+        self._refresh_ui()
+        self._show_seo_dialog()          # generated → let the user edit it now
 
     def _on_render_completed(self, event: Event) -> None:
         project = self._project

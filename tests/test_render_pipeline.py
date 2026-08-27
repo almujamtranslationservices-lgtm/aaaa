@@ -204,11 +204,11 @@ def test_standard_pipeline_from_idea_to_final(bus, settings):
     manager.save(project)
 
     pipeline = build_standard_pipeline(manager, bus=bus)
-    plan_names = {name for name, _, phase in PIPELINE_PLAN if phase <= 13}
+    plan_names = {name for name, _, phase in PIPELINE_PLAN if phase <= 14}
     built_names = {stage.name for stage in pipeline._stages}
     assert built_names <= plan_names                      # documented plan only
     assert {"script.generate", "images.generate", "video.render",
-            "export.final"} <= built_names
+            "seo.generate", "export.final"} <= built_names
 
     result = pipeline.run(make_context(project, manager))
     assert result.success, [r.error for r in result.stage_results if r.outcome == "failed"]
@@ -218,6 +218,8 @@ def test_standard_pipeline_from_idea_to_final(bus, settings):
     assert all(scene.status == SceneStatus.DONE for scene in project.scenes)
     info = json.loads((project_dir / "output" / "render_info.json").read_text())
     assert info["final"].endswith("final.mp4") and info["scenes"] >= 1
+    seo = json.loads((project_dir / "seo.json").read_text(encoding="utf-8"))
+    assert seo["title"] and seo["chapters"]                # SEO stage ran too
 
     engine = FFmpegEngine()
     duration, streams = _probe(engine, final)

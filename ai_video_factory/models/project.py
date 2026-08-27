@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, computed_field
 
 from ai_video_factory.models.audio import MusicSettings, VoiceSettings
 from ai_video_factory.models.character import Character
+from ai_video_factory.models.seo import SEOPackage
 from ai_video_factory.models.scene import Scene
 from ai_video_factory.models.video import RenderSettings, SubtitleSettings
 
@@ -121,6 +122,7 @@ class Project(BaseModel):
     characters: list[Character] = Field(default_factory=list)
     scenes: list[Scene] = Field(default_factory=list)
     settings: ProjectSettings = Field(default_factory=ProjectSettings)
+    seo: SEOPackage | None = None
 
     created_at: str = Field(default_factory=_utcnow_iso)
     updated_at: str = Field(default_factory=_utcnow_iso)
