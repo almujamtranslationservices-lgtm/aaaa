@@ -24,3 +24,5 @@ edge-tts>=6.1
 
 # --- Development / testing ---
 pytest>=8.0
+arabic-reshaper>=3.0
+python-bidi>=0.4

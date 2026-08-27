@@ -133,11 +133,13 @@ class PromptsStage(_ServiceStage):
     def run(self, ctx: PipelineContext) -> None:
         from ai_video_factory.services.scene_service import generate_scene_prompts
 
-        generate_scene_prompts(
+        result = generate_scene_prompts(
             ctx.project, self.manager,
             provider_id=self.provider_id("llm"), model=self.model("llm"),
-            on_progress=lambda done, total, *_: ctx.report_progress(done / max(total, 1)),
         )
+        total = len(ctx.project.scenes) or 1
+        ctx.report_progress(min(1.0, len(result.generated) / total),
+                            f"{len(result.generated)} prompts")
 
 
 class ImagesStage(_ServiceStage):
@@ -288,6 +290,26 @@ class SeoStage(_ServiceStage):
         ctx.report_progress(1.0, f"seo: {result.package.title[:40]}")
 
 
+class ThumbnailStage(_ServiceStage):
+    """Branded 1280×720 thumbnail from the real render (SEO title wins)."""
+
+    name = "thumbnail.generate"
+    on_error = "skip"
+
+    def run(self, ctx: PipelineContext) -> None:
+        from ai_video_factory.services.thumbnail_service import generate_smart_thumbnail
+
+        seo_title = ctx.project.seo.title if ctx.project.seo else None
+        result = generate_smart_thumbnail(
+            ctx.project, self.manager, force=True,
+            title=seo_title,
+        )
+        if not result.ok:
+            raise RuntimeError(f"thumbnail failed: {result.error}")
+        ctx.artifacts["thumbnail"] = result.path
+        ctx.report_progress(1.0, f"thumbnail: {result.background_source}")
+
+
 class ExportStage(_ServiceStage):
     """Verify the final video, persist metadata and announce completion."""
 
@@ -364,6 +386,7 @@ def build_standard_pipeline(
         TimelineAssembleStage(**deps),
         RenderStage(**deps),
         SeoStage(**deps),
+        ThumbnailStage(**deps),
         ExportStage(**deps, bus=bus),
     ]
     for stage in stages:                      # percentages match PIPELINE_PLAN

@@ -136,6 +136,13 @@ class ProjectPage(QWidget):
             "Cached in seo.json (demo provider builds it fully offline)."
         )
         self._seo_button.clicked.connect(self._open_seo)
+        self._thumb_button = QPushButton("🖼  Thumbnail")
+        self._thumb_button.setToolTip(
+            "Branded 1280x720 thumbnail: a real frame of the final video\n"
+            "(or a scene image) + bold editable title/subtitle + duration chip.\n"
+            "Uses the bundled Cairo font — full Arabic shaping, fully offline."
+        )
+        self._thumb_button.clicked.connect(self._open_thumbnail)
         self._generate_all_button = QPushButton("🎬  Generate Everything")
         self._generate_all_button.setToolTip(
             "Runs the WHOLE pipeline in one background task:\n"
@@ -163,6 +170,7 @@ class ProjectPage(QWidget):
         controls.addWidget(self._mix_button)
         controls.addWidget(self._subs_button)
         controls.addWidget(self._seo_button)
+        controls.addWidget(self._thumb_button)
         controls.addWidget(self._generate_all_button)
         controls.addStretch(1)
         controls.addWidget(save_button)
@@ -235,6 +243,7 @@ class ProjectPage(QWidget):
         on_event(self, self._ctx.bus, "subtitles.generated", self._on_subtitles_generated)
         on_event(self, self._ctx.bus, "render.completed", self._on_render_completed)
         on_event(self, self._ctx.bus, "seo.generated", self._on_seo_generated)
+        on_event(self, self._ctx.bus, "thumbnail.generated", self._on_thumbnail_generated)
         on_event(self, self._ctx.bus, "task.succeeded", lambda e: self._on_task_terminal(e))
         on_event(self, self._ctx.bus, "task.failed", lambda e: self._on_task_terminal(e))
         on_event(self, self._ctx.bus, "task.cancelled", lambda e: self._on_task_terminal(e))
@@ -332,6 +341,7 @@ class ProjectPage(QWidget):
         self._mix_button.setEnabled(has_scenes and not busy)
         self._subs_button.setEnabled(has_scenes and not busy)
         self._seo_button.setEnabled(has_project and not busy)
+        self._thumb_button.setEnabled(has_project and not busy)
         for combo in (self._provider_combo, self._image_provider_combo,
                       self._video_provider_combo, self._voice_provider_combo,
                       self._voice_name_combo):
@@ -780,6 +790,59 @@ class ProjectPage(QWidget):
 
             save_seo(project, self._ctx.project_manager, dialog.saved_package)
             self._refresh_ui()
+
+    # -------------------------------------------------------------- thumbnail
+    def _open_thumbnail(self) -> None:
+        """Preview + edit the smart thumbnail recipe, regenerate on Save."""
+        project = self._project
+        if project is None:
+            QMessageBox.information(self, "No project", "Create or open a project first.")
+            return
+        from PySide6.QtWidgets import QDialog
+
+        from ai_video_factory.services.thumbnail_service import (
+            _default_meta, load_thumbnail_meta,
+        )
+        from ai_video_factory.ui.thumbnail_dialog import ThumbnailDialog
+
+        meta = load_thumbnail_meta(project, self._ctx.project_manager) or _default_meta(project)
+        thumb_path = self._ctx.project_manager.project_dir(project) / "output" / "thumbnail.png"
+        dialog = ThumbnailDialog(meta, thumb_path, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted or dialog.saved_meta is None:
+            return
+        custom = dialog.saved_meta
+        project_id = project.id
+
+        def job(tctx) -> str:
+            from ai_video_factory.services.thumbnail_service import generate_smart_thumbnail
+
+            tctx.report_stage("Rendering smart thumbnail…")
+            result = generate_smart_thumbnail(
+                project, self._ctx.project_manager,
+                title=custom["title"], subtitle=custom["subtitle"], badge=custom["badge"],
+                force=True,
+            )
+            if not result.ok:
+                raise RuntimeError(f"thumbnail failed: {result.error}")
+            self._ctx.bus.publish("thumbnail.generated", project_id=project_id,
+                                  path=str(result.path),
+                                  background=result.background_source)
+            return f"thumbnail: {result.background_source}"
+
+        task = self._ctx.task_manager.submit(
+            f"thumbnail: {project.name}", job,
+            max_retries=0,
+            metadata={"project_id": project_id, "kind": "thumbnail"},
+        )
+        self._generating_task_id = task.id
+        self._update_enabled()
+
+    def _on_thumbnail_generated(self, event: Event) -> None:
+        project = self._project
+        if project is None or event.payload.get("project_id") != project.id:
+            return
+        self._refresh_ui()
+        self.scenesChanged.emit()
 
     def _on_seo_generated(self, event: Event) -> None:
         project = self._project

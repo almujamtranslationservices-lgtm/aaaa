@@ -204,7 +204,7 @@ def test_standard_pipeline_from_idea_to_final(bus, settings):
     manager.save(project)
 
     pipeline = build_standard_pipeline(manager, bus=bus)
-    plan_names = {name for name, _, phase in PIPELINE_PLAN if phase <= 14}
+    plan_names = {name for name, _, phase in PIPELINE_PLAN if phase <= 15}
     built_names = {stage.name for stage in pipeline._stages}
     assert built_names <= plan_names                      # documented plan only
     assert {"script.generate", "images.generate", "video.render",
@@ -220,6 +220,9 @@ def test_standard_pipeline_from_idea_to_final(bus, settings):
     assert info["final"].endswith("final.mp4") and info["scenes"] >= 1
     seo = json.loads((project_dir / "seo.json").read_text(encoding="utf-8"))
     assert seo["title"] and seo["chapters"]                # SEO stage ran too
+    from PIL import Image
+    with Image.open(project_dir / "output" / "thumbnail.png") as thumb:
+        assert thumb.size == (1280, 720)                   # smart thumbnail stage
 
     engine = FFmpegEngine()
     duration, streams = _probe(engine, final)
