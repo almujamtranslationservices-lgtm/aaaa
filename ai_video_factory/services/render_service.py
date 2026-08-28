@@ -145,6 +145,12 @@ def render_final_video(
         result.final_path = final_path
         result.thumbnail_path = out_dir / "thumbnail.png"
         result.stages.append("cache hit")
+        # A fully-cached resume still deserves the terminal statuses.
+        for scene in project.scenes:
+            if scene.status != SceneStatus.FAILED:
+                scene.status = SceneStatus.DONE
+        project.status = ProjectStatus.COMPLETED
+        manager.save(project, autosave=True)
         try:
             info = engine.probe(final_path)
             result.duration_s = float(info["format"]["duration"])
